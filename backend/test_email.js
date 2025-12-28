@@ -1,16 +1,16 @@
-require('dotenv').config();
-const sendEmail = require('./utils/sendEmail');
+require("dotenv").config();
+const sendEmail = require("./utils/sendEmail");
 
 const testEmail = async () => {
   try {
     await sendEmail({
-      email: process.env.EMAIL_USER, // Sending to self for testing
-      subject: 'Test OTP Email from StreetFood Connect',
-      message: 'This is a test email to verify your Nodemailer setup.',
+      email: process.env.SENDER_EMAIL,
+      subject: "Test OTP Email from ArtisanConnect",
+      message: "<h2>Your OTP is 123456</h2>",
     });
-    console.log('Test email sent successfully!');
+    console.log("Test email sent successfully!");
   } catch (error) {
-    console.error('Failed to send test email:', error);
+    console.error("Failed to send test email:", error);
   }
 };
 

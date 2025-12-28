@@ -1,16 +1,19 @@
-const nodemailer = require('nodemailer');
+const nodemailer = require("nodemailer");
+require("dotenv").config();
 
 const sendEmail = async (options) => {
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.SMTP_HOST,
+    port: process.env.SMTP_PORT,
+    secure: false,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
     },
   });
 
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: `"ArtisanConnect" <${process.env.SENDER_EMAIL}>`, // ✅ VERIFIED SENDER
     to: options.email,
     subject: options.subject,
     html: options.message,
