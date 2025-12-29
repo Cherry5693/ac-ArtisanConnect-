@@ -1,31 +1,29 @@
-const nodemailer = require("nodemailer");
 require("dotenv").config();
+const SibApiV3Sdk = require("sib-api-v3-sdk");
+
+const client = SibApiV3Sdk.ApiClient.instance;
+client.authentications["api-key"].apiKey = process.env.BREVO_API_KEY;
+
+const emailApi = new SibApiV3Sdk.TransactionalEmailsApi();
 
 const sendEmail = async (options) => {
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT), // 🔥 MUST be number
-    secure: false, // required for 587
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    tls: {
-      rejectUnauthorized: false, // 🔥 REQUIRED on Render
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 10000,
-  });
-
-  const mailOptions = {
-    from: `"ArtisanConnect" <${process.env.SENDER_EMAIL}>`,
-    to: options.email,
-    subject: options.subject,
-    html: options.message,
-  };
-
-  await transporter.sendMail(mailOptions);
+  try {
+    await emailApi.sendTransacEmail({
+      sender: {
+        email: process.env.SENDER_EMAIL,
+        name: "ArtisanConnect",
+      },
+      to: [{ email: options.email }],
+      subject: options.subject,
+      htmlContent: options.message,
+    });
+  } catch (error) {
+    console.error(
+      "Brevo email error:",
+      error?.response?.body || error.message
+    );
+    throw error;
+  }
 };
 
 module.exports = sendEmail;
