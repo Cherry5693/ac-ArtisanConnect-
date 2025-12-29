@@ -4,6 +4,9 @@ const jwt = require('jsonwebtoken');
 const sendEmail = require('../utils/sendEmail');
 const dns = require('dns'); // Import the dns module
 
+// In-memory cache for pending users
+const pendingUsers = {};
+
 // Helper function to generate OTP
 const generateOtp = () => {
   return Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
@@ -38,113 +41,171 @@ exports.register = async (req, res) => {
       return res.status(400).json({ msg: 'Email domain does not exist or cannot receive emails.' });
     }
 
-    // Normalize address into the shape expected by the schema so Mongoose validation won't fail
-    const safeAddress = address && typeof address === 'object' ? {
-      street: address.street || '',
-      city: address.city || '',
-      state: address.state || '',
-      zipCode: address.zipCode || '',
-      coords: address.coords || undefined,
-    } : { street: '', city: '', state: '', zipCode: '' };
-
-    let Model;
-    let userData;
+    // Check if user is already registered and verified
+    let existingUser = await BuyerUser.findOne({ email });
+    if (!existingUser) {
+        existingUser = await ArtisanUser.findOne({ email });
+    }
+    if (existingUser) {
+        return res.status(400).json({ msg: 'User with this email already exists.' });
+    }
 
     const otp = generateOtp();
     const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    if (role === 'buyer') {
-      Model = BuyerUser;
-      userData = {
-        name,
-        email,
-        password: hashedPassword,
-        address: safeAddress,
-        role,
-        otp,
-        otpExpires,
-        isVerified: false,
-      };
-    } else if (role === 'artisan') {
-      Model = ArtisanUser;
-      userData = {
-        email,
-        password: hashedPassword,
-        artisanName: businessName, // Use businessName for artisanName
-        address: safeAddress,
-        role,
-        otp,
-        otpExpires,
-        isVerified: false,
-      };
-    } else {
-      return res.status(400).json({ msg: 'Invalid role specified.' });
-    }
+    // Store user data temporarily
+    pendingUsers[email] = {
+      name,
+      email,
+      password: hashedPassword,
+      role,
+      address,
+      businessName,
+      otp,
+      otpExpires,
+      lastOtpSent: Date.now()
+    };
 
-    let user = await Model.findOne({ email });
-    if (user) {
-      if (!user.isVerified) {
-        console.log('User exists but not verified. Resending OTP.');
-        // If user exists but not verified, resend OTP
-        const newOtp = generateOtp();
-        const newOtpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-        user = await Model.findByIdAndUpdate(
-          user._id,
-          { $set: { otp: newOtp, otpExpires: newOtpExpires } },
-          { new: true, runValidators: false } // Do not run validators on update
-        );
-
-        const message = `Your OTP for StreetFood Connect registration is: ${newOtp}. It is valid for 10 minutes.`;
-        try {
-          await sendEmail({
-            email: user.email,
-            subject: 'StreetFood Connect OTP Verification',
-            message,
-          });
-          console.log('OTP resent successfully to:', user.email);
-        } catch (emailErr) {
-          console.error('Error sending OTP email (resend):', emailErr);
-          return res.status(500).json({ msg: 'Failed to resend OTP email.' });
-        }
-        return res.status(200).json({ msg: 'User already exists but not verified. New OTP sent to your email.' });
-      }
-      console.log('User already exists and is verified.');
-      return res.status(400).json({ msg: 'User already exists and is verified.' });
-    }
-
-    user = new Model(userData);
-
-    console.log('Attempting to save new user:', user.email);
-    await user.save();
-    console.log('User saved successfully.');
-
-    // Send OTP email but do not block the response if it fails
+    // Send OTP email
     try {
-      const message = `Your OTP for StreetFood Connect registration is: ${otp}. It is valid for 10 minutes.`;
+      const message = `Your OTP for ArtisanConnect registration is: ${otp}. It is valid for 10 minutes.`;
       await sendEmail({
-        email: user.email,
-        subject: 'StreetFood Connect OTP Verification',
+        email: email,
+        subject: 'ArtisanConnect OTP Verification',
         message,
       });
-      console.log('OTP sent successfully to:', user.email);
+      console.log('OTP sent successfully to:', email);
     } catch (emailErr) {
-      console.error('CRITICAL: Failed to send OTP email to new user:', user.email, 'Error:', emailErr);
-      // We don't send a 500 error to the client here because the user has been created.
-      // The client can proceed to a "resend OTP" screen.
+      console.error('CRITICAL: Failed to send OTP email to new user:', email, 'Error:', emailErr);
+      return res.status(500).json({ msg: 'Failed to send OTP email.' });
     }
 
     res.status(201).json({ msg: 'Registration successful! OTP sent to your email for verification.' });
 
   } catch (err) {
     console.error('Error during registration:', err);
-    console.error('Registration error details:', JSON.stringify(err, Object.getOwnPropertyNames(err), 2));
-    // Send more detailed error message for validation errors
     res.status(500).json({ msg: err.message, errors: err.errors });
   }
 };
 
+exports.verifyOtp = async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      console.log('Verify OTP request body:', req.body);
+      
+      const pendingUser = pendingUsers[email];
+  
+      if (!pendingUser) {
+        return res.status(400).json({ msg: 'No pending registration found for this email.' });
+      }
+  
+      if (pendingUser.otp !== otp) {
+        return res.status(400).json({ msg: 'Invalid OTP.' });
+      }
+  
+      if (pendingUser.otpExpires < Date.now()) {
+        return res.status(400).json({ msg: 'OTP has expired. Please request a new one.' });
+      }
+  
+      let Model;
+      let userData;
+      const { name, password, role, address, businessName } = pendingUser;
+
+      const safeAddress = address && typeof address === 'object' ? {
+        street: address.street || '',
+        city: address.city || '',
+        state: address.state || '',
+        zipCode: address.zipCode || '',
+        coords: address.coords || undefined,
+      } : { street: '', city: '', state: '', zipCode: '' };
+  
+      if (role === 'buyer') {
+        Model = BuyerUser;
+        userData = {
+          name,
+          email,
+          password,
+          address: safeAddress,
+          role,
+          isVerified: true,
+        };
+      } else if (role === 'artisan') {
+        Model = ArtisanUser;
+        userData = {
+          email,
+          password,
+          artisanName: businessName,
+          address: safeAddress,
+          role,
+          isVerified: true,
+        };
+      } else {
+        return res.status(400).json({ msg: 'Invalid role specified.' });
+      }
+
+      const user = new Model(userData);
+      await user.save();
+  
+      // Clean up the pending user cache
+      delete pendingUsers[email];
+  
+      // Generate token for the newly verified user
+      const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
+      res.status(200).json({ msg: 'Email verified successfully!', token, user: { _id: user._id, name: user.name, email: user.email, role: user.role, address: user.address } });
+  
+    } catch (err) {
+        if (err.code === 11000) { // Handle duplicate key error
+            return res.status(400).json({ msg: 'User with this email already exists.' });
+        }
+      res.status(500).json({ msg: err.message });
+    }
+  };
+
+  exports.resendOtp = async (req, res) => {
+    try {
+      const { email } = req.body;
+      const pendingUser = pendingUsers[email];
+  
+      if (!pendingUser) {
+        return res.status(400).json({ msg: 'No pending registration found for this email.' });
+      }
+  
+      const now = Date.now();
+      // Rate limit to 1 minute
+      if (pendingUser.lastOtpSent && (now - pendingUser.lastOtpSent < 60000)) {
+        return res.status(429).json({ msg: 'Please wait a minute before requesting another OTP.' });
+      }
+  
+      const otp = generateOtp();
+      pendingUser.otp = otp;
+      pendingUser.otpExpires = now + 10 * 60 * 1000; // 10 minutes
+      pendingUser.lastOtpSent = now;
+  
+      const message = `Your new OTP for ArtisanConnect registration is: ${otp}. It is valid for 10 minutes.`;
+      await sendEmail({
+        email: email,
+        subject: 'ArtisanConnect New OTP Verification',
+        message,
+      });
+  
+      res.status(200).json({ msg: 'New OTP sent to your email.' });
+  
+    } catch (err) {
+      res.status(500).json({ msg: err.message });
+    }
+  };
+
+  // Cleanup interval for pending users (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const email in pendingUsers) {
+      if (pendingUsers[email].otpExpires < now) {
+        delete pendingUsers[email];
+        console.log(`Cleaned up expired pending registration for ${email}`);
+      }
+    }
+  }, 5 * 60 * 1000);
 
 exports.login = async (req, res) => {
   try {
@@ -159,7 +220,8 @@ exports.login = async (req, res) => {
     console.log('User found:', user ? user.email : 'None');
     if (!user) return res.status(400).json({ msg: 'Invalid credentials' });
 
-    // NEW: Check if user is verified
+    // isVerified check is implicitly handled by the fact that users are only created after verification.
+    // However, keeping it for safety in case of any manual db entries or future changes.
     if (!user.isVerified) {
       return res.status(400).json({ msg: 'Please verify your email with the OTP sent to you.' });
     }
@@ -172,53 +234,6 @@ exports.login = async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
     let userName = user.role === 'artisan' ? user.artisanName : user.name;
     res.json({ token, user: { _id: user._id, name: userName, email: user.email, role: user.role, address: user.address } });
-  } catch (err) {
-    res.status(500).json({ msg: err.message });
-  }
-};
-
-// NEW: Verify OTP
-exports.verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    console.log('Verify OTP request body:', req.body);
-    
-    let user = await BuyerUser.findOne({ email });
-    if (!user) {
-      user = await ArtisanUser.findOne({ email });
-    }
-
-    console.log('Verify OTP - user found:', user ? ({ email: user.email, isVerified: user.isVerified, otp: user.otp }) : 'None');
-
-    if (!user) {
-      return res.status(400).json({ msg: 'User not found.' });
-    }
-
-    if (user.otp !== otp) {
-      return res.status(400).json({ msg: 'Invalid OTP.' });
-    }
-
-    if (user.otpExpires < Date.now()) {
-      return res.status(400).json({ msg: 'OTP has expired. Please request a new one.' });
-    }
-
-    let Model;
-    if (user.role === 'buyer') {
-      Model = BuyerUser;
-    } else if (user.role === 'artisan') {
-      Model = ArtisanUser;
-    }
-
-    user = await Model.findByIdAndUpdate(
-      user._id,
-      { $set: { isVerified: true, otp: undefined, otpExpires: undefined } },
-      { new: true, runValidators: false } // Do not run validators on update
-    );
-
-    // Generate token for the newly verified user
-    const token = jwt.sign({ id: user._id, role: user.role, name: user.name }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.status(200).json({ msg: 'Email verified successfully!', token, user: { _id: user._id, name: user.name, email: user.email, role: user.role, address: user.address } });
-
   } catch (err) {
     res.status(500).json({ msg: err.message });
   }

@@ -23,6 +23,7 @@ router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);
 router.post('/verify-password-reset-otp', authController.verifyPasswordResetOtp);
 router.post('/verify-otp', authController.verifyOtp); // NEW: OTP Verification
+router.post('/resend-otp', authController.resendOtp); // NEW: Resend OTP
 
 
 // User Profile (for any authenticated user)
