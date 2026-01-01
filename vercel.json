@@ -8,8 +8,8 @@
         {
             "src": "frontend/package.json",
             "use": "@vercel/static-build",
-            "options": {
-                "outputDirectory": "dist"
+            "config": {
+                "distDir": "dist"
             }
         }
     ],

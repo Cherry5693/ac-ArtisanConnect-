@@ -54,8 +54,8 @@ if (process.env.NODE_ENV === 'production') {
 	app.use(express.static(frontendPath));
 
 	// For any GET request that isn't an API route, serve index.html so React Router can handle it.
-	app.get('/*', (req, res) => {
-		if (req.path.startsWith('/api')) return res.status(404).send('Not found');
+	// Use a regex route to avoid path-to-regexp issues with wildcard route strings and explicitly exclude `/api` paths.
+	app.get(/^\/(!?api).*|^\/(?!api).*$/, (req, res) => {
 		res.sendFile(path.join(frontendPath, 'index.html'));
 	});
 }
