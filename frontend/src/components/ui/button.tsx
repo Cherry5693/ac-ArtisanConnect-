@@ -3,6 +3,7 @@ import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+import { Loader2 } from 'lucide-react'
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -59,6 +60,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       "transition-transform duration-150 will-change-transform",
       "active:translate-y-0.5 active:scale-[0.995]", // subtle press effect
       "focus-visible:ring-4 focus-visible:ring-primary/40 focus-visible:ring-offset-2",
+      // Ensure pointer cursor on interactive buttons and a not-allowed cursor when disabled
+      "cursor-pointer disabled:cursor-not-allowed",
       isLoading && "opacity-90 pointer-events-none",
       className
     )

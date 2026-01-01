@@ -8,8 +8,37 @@ exports.createProduct = async (req, res) => {
     console.log('Received product image file:', req.file);
     // Accept both multipart file upload (req.file) and JSON body with base64 image (req.body.image)
     const { name, description, pricePerKg, category, unit, minOrderQty, isPrepped, availableQty, shippingZones, shippingCost } = req.body;
-    // prefer req.file (Cloudinary) if present, otherwise accept base64 image string from body
-    const imageUrl = req.file ? req.file.path : (req.body.image || null);
+    // If multiple files uploaded, prefer req.files (array) otherwise accept req.file or req.body.image
+    let imageUrl = null;
+    let images = [];
+    // If uploaded files exist, collect their URLs
+    if (req.files && Array.isArray(req.files) && req.files.length) {
+      images = req.files.map(f => f.path); // Cloudinary file.path contains url
+      // If the client provided existing image URLs as JSON in req.body.images, merge them
+      if (req.body.images) {
+        try {
+          const parsed = JSON.parse(req.body.images);
+          if (Array.isArray(parsed) && parsed.length) {
+            images = [...parsed, ...images];
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    } else if (req.file) {
+      // backward compatibility for single upload
+      imageUrl = req.file.path;
+      images = imageUrl ? [imageUrl] : [];
+    } else if (req.body.images) {
+      // If frontend sends an array of image URLs in body (e.g., during edit), accept it
+      try {
+        const parsed = JSON.parse(req.body.images);
+        if (Array.isArray(parsed)) images = parsed;
+      } catch (e) {
+        // not JSON - ignore
+      }
+    } else if (req.body.image) {
+      imageUrl = req.body.image;
+      images = imageUrl ? [imageUrl] : [];
+    }
 
     // Validate required fields (description optional)
     if (!name || !pricePerKg || !category || !minOrderQty) { // Removed unit from this check
@@ -18,11 +47,17 @@ exports.createProduct = async (req, res) => {
     // Ensure unit has a default if not provided by frontend
     const productUnit = unit || 'kg'; // Set default to 'kg' if unit is falsy
 
+    // Enforce at most 10 images server-side
+    if (images.length > 10) {
+      return res.status(400).json({ msg: 'You can upload up to 10 images only.' });
+    }
+
     const product = new Product({
       name,
       description: description || '',
       pricePerKg: Number(pricePerKg),
-      imageUrl,
+      imageUrl: imageUrl || (images[0] || null),
+      images: images,
       category,
       unit: productUnit,
       minOrderQty: Number(minOrderQty),
@@ -198,7 +233,25 @@ exports.updateProduct = async (req, res) => {
   try {
     const { id } = req.params; // Product ID
     const { name, description, pricePerKg, category, unit, minOrderQty, isPrepped, availableQty, shippingZones, shippingCost } = req.body;
-    const imageUrl = req.file ? req.file.path : (req.body.imageUrl || null); // Use imageUrl from body if no new file
+    // Support images array via body (for edits) or uploaded files
+    let imageUrl = null;
+    let images = [];
+    if (req.files && Array.isArray(req.files) && req.files.length) {
+      images = req.files.map(f => f.path);
+    } else if (req.file) {
+      imageUrl = req.file.path;
+      images = imageUrl ? [imageUrl] : [];
+    } else if (req.body.images) {
+      try {
+        const parsed = JSON.parse(req.body.images);
+        if (Array.isArray(parsed)) images = parsed;
+      } catch (e) {
+        // ignore
+      }
+    } else if (req.body.imageUrl) {
+      imageUrl = req.body.imageUrl;
+      images = imageUrl ? [imageUrl] : [];
+    } // End image handling
 
     const product = await Product.findById(id);
 
@@ -220,7 +273,14 @@ exports.updateProduct = async (req, res) => {
     if (minOrderQty) product.minOrderQty = Number(minOrderQty);
     if (typeof isPrepped !== 'undefined') product.isPrepped = isPrepped;
     if (availableQty) product.availableQty = Number(availableQty);
-    if (imageUrl) product.imageUrl = imageUrl;
+    if (images && images.length) {
+      // Enforce server-side max
+      if (images.length > 10) return res.status(400).json({ msg: 'You can upload up to 10 images only.' });
+      product.images = images;
+      product.imageUrl = images[0];
+    } else if (imageUrl) {
+      product.imageUrl = imageUrl;
+    }
     if (shippingZones) product.shipping.zones = shippingZones.split(',').map(zone => zone.trim());
     if (shippingCost) product.shipping.cost = Number(shippingCost);
 

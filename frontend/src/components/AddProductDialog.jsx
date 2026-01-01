@@ -33,6 +33,7 @@ const units = ["kg", "litre", "piece", "packet", "box"];
 const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const MAX_IMAGES = 10;
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -42,8 +43,7 @@ const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
     minOrderQty: '',
     isPrepped: false,
     availableQty: '',
-    image: null, // For new file upload
-    imageUrl: '', // For existing image URL
+    images: [], // Array of { file?: File, url: string, isNew: boolean }
     shippingZones: '', // NEW
     shippingCost: '', // NEW
   });
@@ -59,14 +59,13 @@ const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
         minOrderQty: productToEdit.minOrderQty || '',
         isPrepped: productToEdit.isPrepped || false,
         availableQty: productToEdit.availableQty || '',
-        image: null, // No file selected initially for edit
-        imageUrl: productToEdit.imageUrl || '',
+        images: (productToEdit.images && productToEdit.images.length ? productToEdit.images.map((url) => ({ url, isNew: false })) : (productToEdit.imageUrl ? [{ url: productToEdit.imageUrl, isNew: false }] : [])),
         shippingZones: productToEdit.shipping?.zones?.join(', ') || '', // NEW
         shippingCost: productToEdit.shipping?.cost || '', // NEW
       });
     } else {
       // Reset form for add mode
-      setFormData({ name: '', description: '', pricePerKg: '', category: '', unit: 'kg', minOrderQty: '', isPrepped: false, availableQty: '', image: null, imageUrl: '', shippingZones: '', shippingCost: '' });
+      setFormData({ name: '', description: '', pricePerKg: '', category: '', unit: 'kg', minOrderQty: '', isPrepped: false, availableQty: '', images: [], shippingZones: '', shippingCost: '' });
     }
   }, [productToEdit]);
 
@@ -104,10 +103,23 @@ const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
       setFormData(prev => ({ ...prev, isPrepped: checked }));
   };
 
-  const handleFile = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    setFormData(prev => ({ ...prev, image: file, imageUrl: URL.createObjectURL(file) })); // Store file and create preview URL
+  const handleFiles = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    // Prevent selecting more than MAX_IMAGES total
+    const existingCount = formData.images ? formData.images.length : 0;
+    if (existingCount + files.length > MAX_IMAGES) {
+      toast({ title: 'Too many images', description: `You can upload up to ${MAX_IMAGES} images.`, variant: 'destructive' });
+      return;
+    }
+
+    const newImages = files.map(f => ({ file: f, url: URL.createObjectURL(f), isNew: true }));
+    setFormData(prev => ({ ...prev, images: [...(prev.images || []), ...newImages] }));
+  };
+
+  const removeImage = (index) => {
+    setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
   };
 
   const handleSubmit = (e) => {
@@ -141,10 +153,22 @@ const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
     formDataToSend.append('minOrderQty', formData.minOrderQty);
     formDataToSend.append('isPrepped', formData.isPrepped);
     formDataToSend.append('availableQty', formData.availableQty);
-    if (formData.image) {
-      formDataToSend.append('image', formData.image);
-    } else if (formData.imageUrl) { // If no new image, but existing imageUrl, send it
-      formDataToSend.append('imageUrl', formData.imageUrl);
+    // Handle multiple images (new files and existing URLs)
+    const imagesArray = formData.images || [];
+    if (imagesArray.length > MAX_IMAGES) {
+      toast({ title: 'Too many images', description: `You can upload up to ${MAX_IMAGES} images.`, variant: 'destructive' });
+      return;
+    }
+
+    // Append new files first (backend will merge JSON urls + files)
+    imagesArray.filter(img => img.isNew).forEach(img => {
+      if (img.file) formDataToSend.append('images', img.file);
+    });
+
+    // Send remaining existing URLs as JSON string under 'images'
+    const existingUrls = imagesArray.filter(img => !img.isNew).map(img => img.url);
+    if (existingUrls.length) {
+      formDataToSend.append('images', JSON.stringify(existingUrls));
     }
     // Append shipping details only if they are not empty
     if (formData.shippingZones) {
@@ -207,9 +231,17 @@ const AddProductDialog = ({ isOpen, onClose, productToEdit }) => {
       </div>
     </div>
     <div>
-      <Label className="font-semibold text-gray-700">Image</Label>
-      <Input type="file" accept="image/*" onChange={handleFile} className="px-2 py-1 sm:px-3 sm:py-2 w-full rounded-lg border focus:outline-none focus:ring-2 focus:ring-green-400 transition" />
-      {formData.imageUrl && !formData.image && <img src={formData.imageUrl} alt="Preview" className="mt-2 rounded-lg w-24 h-24 sm:w-32 sm:h-32 object-cover border shadow" />}
+      <Label className="font-semibold text-gray-700">{`Images (up to ${MAX_IMAGES})`}</Label>
+      <Input type="file" accept="image/*" multiple onChange={handleFiles} className="px-2 py-1 sm:px-3 sm:py-2 w-full rounded-lg border focus:outline-none focus:ring-2 focus:ring-green-400 transition" />
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {formData.images && formData.images.length ? formData.images.map((img, idx) => (
+          <div key={idx} className="relative">
+            <img src={img.url} alt={`Preview ${idx + 1}`} className="rounded-lg w-24 h-24 sm:w-32 sm:h-32 object-cover border shadow" />
+            <button type="button" onClick={() => removeImage(idx)} className="absolute top-0 right-0 bg-white rounded-full p-1 text-red-600 shadow">✕</button>
+          </div>
+        )) : <p className="text-sm text-gray-500">No images selected.</p>}
+      </div>
+      <p className="text-sm text-gray-500 mt-2">{(formData.images && formData.images.length) || 0}/{MAX_IMAGES} images</p>
     </div>
     <div className="flex items-center gap-2 sm:gap-3">
       <Switch checked={formData.isPrepped} onCheckedChange={handleSwitchChange} className="focus:ring-2 focus:ring-green-400" />

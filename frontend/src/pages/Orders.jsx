@@ -5,14 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useAuth } from '../context/AuthContext';
-import { Loader2, Truck, Star } from 'lucide-react';
+import { Truck, Star, Loader2 } from 'lucide-react';
 import OrderTrackingDialog from '@/components/OrderTrackingDialog';
 import ReviewDialog from '@/components/ReviewDialog';
 import { toast } from '../hooks/use-toast';
+import { OrderCardSkeletonGrid } from '@/components/OrderCardSkeleton';
 
 const Orders = () => {
-  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isTrackOpen, setIsTrackOpen] = useState(false);
@@ -120,11 +119,7 @@ const Orders = () => {
                 onClick={handleCancelClick}
                 disabled={cancelMutation.isPending}
               >
-                {cancelMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  'Cancel'
-                )}
+                {cancelMutation.isPending ? 'Cancelling...' : 'Cancel'}
               </Button>
             )}
           </div>
@@ -186,9 +181,7 @@ const Orders = () => {
           {/* Active Orders */}
           <TabsContent value="active" className="mt-6">
             {isLoading ? (
-              <div className="flex justify-center p-8">
-                <Loader2 className="animate-spin w-8 h-8 text-gray-500" />
-              </div>
+              <OrderCardSkeletonGrid count={4} />
             ) : activeOrders.length > 0 ? (
               <div className="grid md:grid-cols-2 gap-6">
                 {activeOrders.map((order) => (
@@ -205,9 +198,7 @@ const Orders = () => {
           {/* Processing Orders */}
           <TabsContent value="processing" className="mt-6">
             {isLoading ? (
-              <div className="flex justify-center p-8">
-                <Loader2 className="animate-spin w-8 h-8 text-gray-500" />
-              </div>
+              <OrderCardSkeletonGrid count={4} />
             ) : processingOrders.length > 0 ? (
               <div className="grid md:grid-cols-2 gap-6">
                 {processingOrders.map((order) => (

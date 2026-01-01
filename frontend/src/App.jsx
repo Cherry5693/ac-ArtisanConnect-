@@ -24,7 +24,18 @@ import InboxPage from './pages/InboxPage';
 import CompletedOrdersPage from './pages/CompletedOrdersPage';
 import ArtisanOrdersPage from './pages/ArtisanOrdersPage'; // NEW: Import ArtisanOrdersPage
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes - data considered fresh
+      gcTime: 1000 * 60 * 30, // 30 minutes - cache persists (formerly cacheTime)
+      refetchOnWindowFocus: false, // Don't refetch on window focus for better UX
+      refetchOnMount: false, // Use cached data if available
+      retry: 1, // Retry failed requests once
+      refetchOnReconnect: true, // Refetch on reconnect
+    },
+  },
+});
 function AppWrapper() {
   const location = useLocation();
   const hideNavbar = location.pathname === "/login" || location.pathname === "/register";

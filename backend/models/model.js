@@ -16,6 +16,7 @@ const ProductSchema = new mongoose.Schema({
   description: { type: String },
   pricePerKg: { type: Number, required: true },
   imageUrl: { type: String }, // Changed from 'image' to 'imageUrl'
+  images: [{ type: String }], // Support multiple images (URLs), max 10 expected
   category: { type: String, required: true },
   unit: { type: String, default: 'kg' },
   minOrderQty: { type: Number, required: true },

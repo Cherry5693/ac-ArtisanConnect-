@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Button } from './ui/button';
 import { useAuth } from '../context/AuthContext';
 import { User as UserIcon, LogOut, ShoppingCart, MessageSquare, Globe, Menu } from 'lucide-react';
@@ -12,11 +12,13 @@ import {
 } from './ui/dropdown-menu';
 import { useQuery } from '@tanstack/react-query';
 import { getUnreadMessageCount } from '../services/chatService';
+import { useTranslation } from 'react-i18next';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
   const isActive = (path) => location.pathname === path;
+  const { t, i18n } = useTranslation(['nav']);
 
   const { data: unreadCountData } = useQuery({
     queryKey: ['unreadMessageCount'],
@@ -30,50 +32,11 @@ const Navbar = () => {
   // State for mobile menu
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // State for language selector
-  const [isTranslateVisible, setIsTranslateVisible] = useState(false);
-  const translateRef = useRef(null);
-
-  const toggleTranslate = () => setIsTranslateVisible(prev => !prev);
   const toggleMobileMenu = () => setIsMobileMenuOpen(prev => !prev);
 
-  // Close translate dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        translateRef.current &&
-        !translateRef.current.contains(event.target) &&
-        event.target.id !== 'translate-toggle-button'
-      ) {
-        setIsTranslateVisible(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
-
-  // Initialize Google Translate
-  useEffect(() => {
-    if (!window.google || !window.google.translate) {
-      const script = document.createElement('script');
-      script.src = "https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit";
-      script.async = true;
-      document.body.appendChild(script);
-    } else {
-      initializeTranslate();
-    }
-
-    window.googleTranslateElementInit = initializeTranslate;
-
-    function initializeTranslate() {
-      if (window.google && window.google.translate) {
-        new window.google.translate.TranslateElement(
-          { pageLanguage: 'en', layout: window.google.translate.TranslateElement.InlineLayout.SIMPLE },
-          'google_translate_element'
-        );
-      }
-    }
-  }, []);
+  const changeLanguage = (lng) => {
+    i18n.changeLanguage(lng);
+  };
 
   return (
     <nav className="sticky top-0 z-50 bg-white/20 backdrop-blur-2xl border-b border-white/30 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
@@ -86,7 +49,7 @@ const Navbar = () => {
               <ShoppingCart className="w-6 h-6 text-white" />
             </div>
             <span className="text-2xl font-extrabold tracking-tight text-gray-900 drop-shadow-sm">
-              Artisan Connect
+              {t('nav:brand')}
             </span>
           </Link>
 
@@ -97,7 +60,7 @@ const Navbar = () => {
                 to="/products"
                 className={`text-lg font-medium hover:text-red-500 transition ${isActive('/products') ? 'text-red-600' : 'text-gray-800'}`}
               >
-                Products
+                {t('nav:products')}
               </Link>
 
               {user?.role === 'artisan' ? (
@@ -106,13 +69,13 @@ const Navbar = () => {
                     to="/artisan"
                     className={`text-lg font-medium hover:text-red-500 transition ${isActive('/artisan') ? 'text-red-600' : 'text-gray-800'}`}
                   >
-                    Dashboard
+                    {t('nav:dashboard')}
                   </Link>
                   <Link
                     to="/my-products"
                     className={`text-lg font-medium hover:text-red-500 transition ${isActive('/my-products') ? 'text-red-600' : 'text-gray-800'}`}
                   >
-                    My Products
+                    {t('nav:myProducts')}
                   </Link>
                 </>
               ) : (
@@ -120,7 +83,7 @@ const Navbar = () => {
                   to="/orders"
                   className={`text-lg font-medium hover:text-red-500 transition ${isActive('/orders') ? 'text-red-600' : 'text-gray-800'}`}
                 >
-                  My Orders
+                  {t('nav:myOrders')}
                 </Link>
               )}
 
@@ -129,7 +92,7 @@ const Navbar = () => {
                 className={`relative text-lg font-medium flex items-center hover:text-red-500 transition ${isActive('/inbox') ? 'text-red-600' : 'text-gray-800'}`}
               >
                 <MessageSquare className="w-5 h-5 mr-2" />
-                Inbox
+                {t('nav:inbox')}
                 {unreadCount > 0 && (
                   <span className="absolute -top-2 -right-4 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">
                     {unreadCount}
@@ -148,6 +111,24 @@ const Navbar = () => {
 
           {/* Right side */}
           <div className="hidden md:flex items-center space-x-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  className="flex items-center space-x-2 text-lg font-medium hover:bg-white/40 px-3 py-2 rounded-xl"
+                >
+                  <Globe className="w-5 h-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="w-48 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-200"
+              >
+                  <DropdownMenuItem onClick={() => changeLanguage('en')}>{t('nav:language')} - English</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => changeLanguage('es')}>{t('nav:language')} - Español</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => changeLanguage('hi')}>{t('nav:language')} - हिंदी</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             {isAuthenticated && user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -171,17 +152,12 @@ const Navbar = () => {
                   <DropdownMenuItem asChild>
                     <Link to="/profile" className="flex items-center">
                       <UserIcon className="w-4 h-4 mr-2" />
-                      Profile
+                      {t('nav:profile')}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={logout} className="text-red-600 flex items-center">
                     <LogOut className="w-4 h-4 mr-2" />
-                    Logout
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={toggleTranslate} id="translate-toggle-button" className="flex items-center cursor-pointer">
-                    <Globe className="w-4 h-4 mr-2" />
-                    Language
+                    {t('nav:logout')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -189,11 +165,11 @@ const Navbar = () => {
               <div className="space-x-3">
                 <Button variant="ghost" size="lg" asChild>
                   <Link to="/login" className="text-lg font-medium">
-                    Login
+                    {t('auth:login')}
                   </Link>
                 </Button>
                 <Button size="lg" className="text-lg font-semibold px-6 bg-red-500 hover:bg-red-600">
-                  <Link to="/register">Register</Link>
+                  <Link to="/register">{t('auth:register')}</Link>
                 </Button>
               </div>
             )}
@@ -211,7 +187,7 @@ const Navbar = () => {
       className={`font-medium hover:text-red-500 transition ${isActive('/products') ? 'text-red-600' : 'text-gray-800'}`}
       onClick={() => setIsMobileMenuOpen(false)}
     >
-      Products
+      {t('Products')}
     </Link>
 
     {user?.role === 'artisan' ? (
@@ -221,14 +197,14 @@ const Navbar = () => {
           className={`font-medium hover:text-red-500 transition ${isActive('/artisan') ? 'text-red-600' : 'text-gray-800'}`}
           onClick={() => setIsMobileMenuOpen(false)}
         >
-          Dashboard
+          {t('Dashboard')}
         </Link>
         <Link
           to="/my-products"
           className={`font-medium hover:text-red-500 transition ${isActive('/my-products') ? 'text-red-600' : 'text-gray-800'}`}
           onClick={() => setIsMobileMenuOpen(false)}
         >
-          My Products
+          {t('My Products')}
         </Link>
       </>
     ) : (
@@ -237,7 +213,7 @@ const Navbar = () => {
         className={`font-medium hover:text-red-500 transition ${isActive('/orders') ? 'text-red-600' : 'text-gray-800'}`}
         onClick={() => setIsMobileMenuOpen(false)}
       >
-        My Orders
+        {t('My Orders')}
       </Link>
     )}
 
@@ -247,7 +223,7 @@ const Navbar = () => {
       onClick={() => setIsMobileMenuOpen(false)}
     >
       <MessageSquare className="w-5 h-5 mr-2" />
-      Inbox
+      {t('Inbox')}
       {unreadCount > 0 && (
         <span className="absolute -top-2 -right-4 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">
           {unreadCount}
@@ -261,36 +237,21 @@ const Navbar = () => {
         className="flex items-center justify-between w-full px-2 py-2 font-medium text-gray-800 hover:bg-gray-100 rounded-md"
         onClick={() => setIsMobileMenuOpen(false)}
       >
-        <span>Profile</span>
+        <span>{t('Profile')}</span>
         <UserIcon className="w-5 h-5" />
       </button>
       <button
         className="flex items-center justify-between w-full px-2 py-2 font-medium text-red-600 hover:bg-red-100 rounded-md"
         onClick={() => { logout(); setIsMobileMenuOpen(false); }}
       >
-        <span>Logout</span>
+        <span>{t('Logout')}</span>
         <LogOut className="w-5 h-5" />
-      </button>
-      <button
-        id="translate-toggle-button"
-        className="flex items-center justify-between w-full px-2 py-2 font-medium text-gray-800 hover:bg-gray-100 rounded-md"
-        onClick={toggleTranslate}
-      >
-        <span>Language</span>
-        <Globe className="w-5 h-5" />
       </button>
     </div>
   </div>
 )}
 
       </div>
-
-      {/* Google Translate */}
-      <div
-        ref={translateRef}
-        id="google_translate_element"
-        className={`absolute top-20 right-6 bg-white border border-gray-300 p-2 rounded-md shadow-md z-[1000] w-64 overflow-auto transition-opacity ${isTranslateVisible ? 'opacity-100 block' : 'opacity-0 hidden'}`}
-      ></div>
     </nav>
   );
 };

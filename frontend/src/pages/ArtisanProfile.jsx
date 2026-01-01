@@ -83,7 +83,7 @@ const ArtisanProfile = () => {
           <CardDescription>{artisan.role}</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">{artisan.address?.street}, {artisan.address?.city}, {artisan.address?.state} - {artisan.address?.zipCode}</p>
+          <p className="text-sm text-muted-foreground">{artisan.address?.street}, {artisan.address?.city}, {artisan.address?.state} - {artisan.address?.zipCode || artisan.address?.zip || 'Not set'}</p>
           <p className="mt-2">Average Product Rating: <strong>{averageRating ? averageRating.toFixed(2) : 'N/A'}</strong></p>
         </CardContent>
       </Card>

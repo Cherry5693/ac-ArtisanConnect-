@@ -17,10 +17,11 @@ import {
   Search,
   ShoppingCart,
   IndianRupee,
-  Loader2,
   Package,
   MapPin,
 } from 'lucide-react';
+import { ProductCardSkeletonGrid } from '@/components/ProductCardSkeleton';
+import { ProgressiveImage } from '@/components/ProgressiveImage';
 import { useAuth } from '../context/AuthContext';
 import {
   Select,
@@ -247,9 +248,7 @@ const Products = () => {
 
         {/* Product cards */}
         {isLoading ? (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-green-700" />
-          </div>
+          <ProductCardSkeletonGrid count={6} />
         ) : filteredProducts.length > 0 ? (
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {filteredProducts.map((product) => (
@@ -259,10 +258,11 @@ const Products = () => {
               >
                 <Link to={`/products/${product._id}`}>
                   {product.imageUrl && (
-                    <img
+                    <ProgressiveImage
                       src={product.imageUrl}
                       alt={product.name}
                       className="h-48 w-full object-cover"
+                      skeletonClassName="h-48"
                     />
                   )}
                   <CardHeader className="pb-2">

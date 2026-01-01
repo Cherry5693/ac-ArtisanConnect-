@@ -161,7 +161,7 @@ const ArtisanProfilePage = () => {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Zip Code:</p>
-                  <p className="text-lg font-medium">{user.address.zipCode}</p>
+                  <p className="text-lg font-medium">{user.address.zipCode || user.address.zip || 'Not set'}</p>
                 </div>
                 {user.address.coords && (
                   <>

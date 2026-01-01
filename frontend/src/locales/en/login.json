@@ -1,0 +1,12 @@
+{
+  "title": "Sign in to your account",
+  "description": "Enter your credentials to access your dashboard.",
+  "buyer": "Buyer",
+  "artisan": "Artisan",
+  "email": "Email",
+  "password": "Password",
+  "sign_in": "Sign In",
+  "forgot_password": "Forgot Password?",
+  "dont_have_account": "Don't have an account?",
+  "sign_up": "Sign up"
+}

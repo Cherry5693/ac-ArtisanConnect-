@@ -6,8 +6,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import RouteMap from '../components/RouteMap';
 import ArtisanLocationMap from '../components/ArtisanLocationMap';
-import { Loader2, ArrowLeft, MapPin } from 'lucide-react';
+import { Loader2, ArrowLeft, ArrowRight, MapPin } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { haversineDistance } from '../lib/distance';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import JoinOrderDialog from '../components/JoinOrderDialog';
@@ -18,6 +19,7 @@ const ProductDetail = () => {
   const { user } = useAuth();
   const [buyerLocation, setBuyerLocation] = useState(null);
   const [locationError, setLocationError] = useState(null);
+  const [locationLoading, setLocationLoading] = useState(true);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState(null);
   const [isOrderDialogOpen, setIsOrderDialogOpen] = useState(false);
@@ -26,20 +28,101 @@ const ProductDetail = () => {
   const isAnyDialogOpen = isOrderDialogOpen;
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
 
+  // Helper to validate coords
+  const isValidCoords = (c) => c && typeof c.lat === 'number' && typeof c.lng === 'number' && isFinite(c.lat) && isFinite(c.lng) && Math.abs(c.lat) <= 90 && Math.abs(c.lng) <= 180;
+
+  // Normalize coordinates and handle common mis-formats (strings, swapped lat/lng, [lng,lat] arrays)
+  const normalizeCoords = (c) => {
+    if (!c) return null;
+    // Allow object {lat,lng} or {latitude,longitude} or array [lng,lat] or [lat,lng]
+    let lat = Number(c.lat ?? c.latitude ?? (Array.isArray(c) ? c[1] : undefined));
+    let lng = Number(c.lng ?? c.longitude ?? (Array.isArray(c) ? c[0] : undefined));
+
+    const latValid = Number.isFinite(lat) && Math.abs(lat) <= 90;
+    const lngValid = Number.isFinite(lng) && Math.abs(lng) <= 180;
+
+    // If lat is invalid but lng looks like a latitude, assume swapped values and flip
+    if ((!latValid || !lngValid) && Number.isFinite(lng) && Math.abs(lng) <= 90 && Number.isFinite(lat) && Math.abs(lat) <= 180) {
+      // swap
+      [lat, lng] = [lng, lat];
+      console.warn('normalizeCoords: detected swapped lat/lng and auto-swapped', { original: c, normalized: { lat, lng } });
+    }
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+
+    return { lat, lng };
+  }; 
+
+  // Prefer buyer location from authenticated user's saved profile (DB). Fallback to device geolocation only if not available.
   useEffect(() => {
+    setLocationLoading(true);
+    setLocationError(null);
+
+    // 1) Try user-saved address coords
+    const savedCoords = user?.address?.coords;
+    const normalizedSaved = normalizeCoords(savedCoords);
+    if (normalizedSaved) {
+      setBuyerLocation(normalizedSaved);
+      setLocationLoading(false);
+      return;
+    }
+
+    // 2) Optionally, if user has a profile-level location attribute
+    if (user?.location) {
+      const normalizedProfile = normalizeCoords(user.location);
+      if (normalizedProfile) {
+        setBuyerLocation(normalizedProfile);
+        setLocationLoading(false);
+        return;
+      }
+    }
+
+    // 3) Not available in DB/profile — try device geolocation, but do not force it. Provide explicit prompt instead of auto-permission where possible.
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setBuyerLocation({ lat: position.coords.latitude, lng: position.coords.longitude });
+          const normalized = normalizeCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
+          setBuyerLocation(normalized || { lat: position.coords.latitude, lng: position.coords.longitude });
           setLocationError(null);
+          setLocationLoading(false);
         },
-        () => setLocationError("Could not get your location. Route calculation disabled."),
+        (err) => {
+          console.warn('Geolocation denied or failed:', err);
+          setLocationError("Could not get your location. Add your address or enable location to see the route.");
+          setLocationLoading(false);
+        },
         { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
       );
     } else {
       setLocationError("Geolocation is not supported by your browser.");
+      setLocationLoading(false);
     }
-  }, []);
+  }, [user]);
+
+  const requestDeviceLocation = () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const normalized = normalizeCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
+          setBuyerLocation(normalized || { lat: position.coords.latitude, lng: position.coords.longitude });
+          setLocationError(null);
+          setLocationLoading(false);
+        },
+        (err) => {
+          console.warn('Geolocation denied or failed:', err);
+          setLocationError("Could not get your location. Add your address or enable location to see the route.");
+          setLocationLoading(false);
+        },
+        { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+      );
+    } else {
+      setLocationError("Geolocation is not supported by your browser.");
+      setLocationLoading(false);
+    }
+  };
 
   const { data: productData, isLoading, isError, error } = useQuery({
     queryKey: ['product', id],
@@ -47,8 +130,76 @@ const ProductDetail = () => {
   });
 
   const product = productData?.data;
-  const artisanCoords = product?.location || product?.artisan?.address?.coords;
+  const initialArtisanCoords = product?.location || product?.artisan?.address?.coords;
+  const [resolvedArtisanCoords, setResolvedArtisanCoords] = useState(initialArtisanCoords ? normalizeCoords(initialArtisanCoords) : null);
+  const [artisanLoading, setArtisanLoading] = useState(!initialArtisanCoords && !!product?.artisan?._id);
+  const [artisanError, setArtisanError] = useState(null);
   const isOwner = user?._id === product?.artisan?._id;
+
+  // Product image gallery state
+  const gallery = (product?.images && product.images.length) ? product.images : (product?.imageUrl ? [product.imageUrl] : []);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    // Keep index within bounds when product changes
+    if (!gallery || gallery.length === 0) {
+      setCurrentIndex(0);
+    } else if (currentIndex >= gallery.length) {
+      setCurrentIndex(0);
+    }
+  }, [product]);
+
+  useEffect(() => {
+    if (!gallery || gallery.length <= 1) return;
+    const handler = (e) => {
+      if (e.key === 'ArrowRight') setCurrentIndex(i => Math.min(i + 1, gallery.length - 1));
+      if (e.key === 'ArrowLeft') setCurrentIndex(i => Math.max(i - 1, 0));
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [gallery]);
+
+  // Compute display coords for artisan (avoid referencing undefined `artisanCoords` variable)
+  const displayArtisanRaw = resolvedArtisanCoords || initialArtisanCoords;
+  const displayArtisanCoords = normalizeCoords(displayArtisanRaw);
+
+  // If both buyer and artisan coords are present but markers are far apart, try permutations
+  // of lat/lng (swapped) to detect and correct swapped coordinates (common data-entry bug).
+  const autoFixIfSwapped = (bCoords, aCoords) => {
+    if (!bCoords || !aCoords) return { buyer: bCoords, artisan: aCoords, fixed: false };
+    const b = { ...bCoords };
+    const a = { ...aCoords };
+
+    const d0 = haversineDistance([b.lat, b.lng], [a.lat, a.lng]);
+    const d1 = haversineDistance([b.lng, b.lat], [a.lat, a.lng]);
+    const d2 = haversineDistance([b.lat, b.lng], [a.lng, a.lat]);
+    const d3 = haversineDistance([b.lng, b.lat], [a.lng, a.lat]);
+
+    const distMap = [
+      { key: 'none', dist: d0 },
+      { key: 'buyerSwapped', dist: d1 },
+      { key: 'artisanSwapped', dist: d2 },
+      { key: 'bothSwapped', dist: d3 },
+    ];
+    const best = distMap.reduce((p, c) => (c.dist < p.dist ? c : p), distMap[0]);
+
+    // Accept a swap only if it significantly reduces the distance and the resulting distance is reasonable
+    if (best.key !== 'none' && best.dist < d0 / 2 && best.dist < 2000) {
+      let fixedBuyer = b;
+      let fixedArtisan = a;
+      if (best.key === 'buyerSwapped' || best.key === 'bothSwapped') {
+        fixedBuyer = { lat: b.lng, lng: b.lat };
+        console.warn('Auto-swapped buyer lat/lng to match artisan (reduced distance)', { original: b, fixed: fixedBuyer, oldDist: d0, newDist: best.dist });
+      }
+      if (best.key === 'artisanSwapped' || best.key === 'bothSwapped') {
+        fixedArtisan = { lat: a.lng, lng: a.lat };
+        console.warn('Auto-swapped artisan lat/lng to match buyer (reduced distance)', { original: a, fixed: fixedArtisan, oldDist: d0, newDist: best.dist });
+      }
+      return { buyer: fixedBuyer, artisan: fixedArtisan, fixed: true };
+    }
+
+    return { buyer: b, artisan: a, fixed: false };
+  };
 
   const handleChatClick = async () => {
     setChatLoading(true);
@@ -97,8 +248,29 @@ const ProductDetail = () => {
           {/* Product Details */}
           <div className="lg:col-span-2">
             <Card className="rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-shadow bg-white border border-gray-100">
-              {product.imageUrl && (
-                <img src={product.imageUrl} alt={product.name} className="w-full h-80 object-cover" />
+              {gallery && gallery.length ? (
+                <div className="relative w-full h-80 bg-black/5 overflow-hidden">
+                  <img src={gallery[currentIndex]} alt={`${product.name} - ${currentIndex + 1}`} className="w-full h-80 object-cover transition-opacity duration-300" />
+
+                  {/* Left / Right controls */}
+                  {gallery.length > 1 && (
+                    <>
+                      <button aria-label="Previous image" onClick={() => setCurrentIndex(i => Math.max(i - 1, 0))} disabled={currentIndex === 0} className={`absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 shadow ${currentIndex === 0 ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                        <ArrowLeft className="w-4 h-4" />
+                      </button>
+                      <button aria-label="Next image" onClick={() => setCurrentIndex(i => Math.min(i + 1, gallery.length - 1))} disabled={currentIndex === gallery.length - 1} className={`absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 rounded-full p-2 shadow ${currentIndex === gallery.length - 1 ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
+                        {gallery.map((g, idx) => (
+                          <button key={idx} onClick={() => setCurrentIndex(idx)} aria-label={`Go to image ${idx + 1}`} className={`w-2 h-2 rounded-full ${idx === currentIndex ? 'bg-white' : 'bg-white/40'}`} />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="w-full h-80 bg-gray-100 flex items-center justify-center">No Image</div>
               )}
               <CardHeader className="px-6 pt-6">
                 <div className="flex justify-between items-start">
@@ -121,9 +293,9 @@ const ProductDetail = () => {
                       <h3 className="text-xl font-semibold mb-2">Artisan Information</h3>
                       <p className="text-gray-600">Artisan: <Link to={`/artisans/${product.artisan._id}`} className="text-primary underline font-bold">{product.artisan.businessName || product.artisan.name}</Link></p>
                       {product.artisan.address && (
-                        <p className="text-gray-600 flex items-center"><MapPin className="w-4 h-4 mr-1" />{product.artisan.address.street}, {product.artisan.address.city}, {product.artisan.address.state} - {product.artisan.address.zipCode}</p>
+                        <p className="text-gray-600 flex items-center"><MapPin className="w-4 h-4 mr-1" />{product.artisan.address.street}, {product.artisan.address.city}, {product.artisan.address.state} - {product.artisan.address.zipCode || product.artisan.address.zip || 'Not set'}</p>
                       )}
-                      {artisanCoords && <p className="text-gray-400 text-sm mt-1">(Lat: {artisanCoords.lat}, Lng: {artisanCoords.lng})</p>}
+                      {displayArtisanCoords && <p className="text-gray-400 text-sm mt-1">(Lat: {displayArtisanCoords.lat}, Lng: {displayArtisanCoords.lng})</p>}
                     </div>
                   )}
                 </div>
@@ -162,18 +334,69 @@ const ProductDetail = () => {
                 <CardDescription>Find your way to the artisan.</CardDescription>
               </CardHeader>
               <CardContent className="px-6 py-4 h-96 flex flex-col justify-center">
-                {artisanCoords ? (
-                  locationError ? (
-                    <p className="text-destructive text-sm mb-2">{locationError}</p>
-                  ) : <RouteMap buyerCoords={buyerLocation} artisanCoords={artisanCoords} isDialogOpen={isAnyDialogOpen} userRole={user?.role} />
-                ) : (
-                  <div className="text-center py-8">
-                    <MapPin className="mx-auto h-12 w-12 text-gray-300 mb-2" />
-                    <h3 className="font-semibold">Location Not Available</h3>
-                    <p className="text-gray-400 text-sm mt-1">{isOwner ? "Add your location to show it on the map." : "This artisan has not set their location yet."}</p>
-                    {isOwner && <Button asChild className="mt-4"><Link to="/artisan-profile-page">Set Location</Link></Button>}
-                  </div>
-                )}
+                {/* Normalize and validate artisan coords */}
+                {(() => {
+                  const raw = resolvedArtisanCoords || initialArtisanCoords;
+                  const normalizedArtisan = normalizeCoords(raw);
+
+                  if (artisanLoading) {
+                    return (<div className="map-skeleton animate-pulse p-6 bg-white rounded-lg shadow text-center">Resolving artisan location...</div>);
+                  }
+
+                  if (!normalizedArtisan) {
+                    return (
+                      <div className="text-center py-8">
+                        <MapPin className="mx-auto h-12 w-12 text-gray-300 mb-2" />
+                        <h3 className="font-semibold">Location Not Available</h3>
+                        <p className="text-gray-400 text-sm mt-1">{isOwner ? "Add your location to show it on the map." : "This artisan has not set their location yet."}</p>
+                        {isOwner && <Button asChild className="mt-4"><Link to="/artisan-profile-page">Set Location</Link></Button>}
+                      </div>
+                    );
+                  }
+
+                  // If artisan coordinates exist but buyer location not resolved yet
+                  if (!buyerLocation && locationLoading) {
+                    return (<div className="map-skeleton animate-pulse p-6 bg-white rounded-lg shadow text-center">Resolving your location...</div>);
+                  }
+
+                  if (!buyerLocation && !locationLoading) {
+                    return (
+                      <div className="text-center py-6">
+                        <p className="mb-2">Your location is required to calculate the route.</p>
+                        <div className="flex justify-center gap-3">
+                          <Button onClick={requestDeviceLocation} className="bg-blue-600 text-white">Use my device location</Button>
+                          <Button asChild variant="outline"><Link to="/buyer-profile">Add address</Link></Button>
+                        </div>
+                        {locationError && <p className="text-sm text-destructive mt-3">{locationError}</p>}
+                      </div>
+                    );
+                  }
+
+                  // Both coords available: render the map
+                  let normalizedBuyer = normalizeCoords(buyerLocation);
+
+                  // Attempt to auto-fix swapped coordinates by minimizing distance between points
+                  try {
+                    const fixResult = autoFixIfSwapped(normalizedBuyer, normalizedArtisan);
+                    normalizedBuyer = fixResult.buyer;
+                    // we could also update normalizedArtisan if needed; the RouteMap just needs final coords
+                    if (fixResult.fixed) {
+                      console.info('Coordinate auto-fix applied to product detail map', fixResult);
+                    }
+                  } catch (e) {
+                    // keep original if anything goes wrong
+                    console.warn('Auto-fix swap check failed', e);
+                  }
+
+                  return (
+                    <RouteMap 
+                      buyerCoords={normalizedBuyer} 
+                      artisanCoords={normalizedArtisan}
+                      isDialogOpen={isAnyDialogOpen}
+                      userRole={user?.role}
+                    />
+                  );
+                })()}
               </CardContent>
             </Card>
           </div>

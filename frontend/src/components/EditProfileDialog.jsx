@@ -43,7 +43,7 @@ const EditProfileDialog = ({ isOpen, onClose, currentUser }) => {
           street: currentUser.address?.street || '',
           city: currentUser.address?.city || '',
           state: currentUser.address?.state || '',
-          zipCode: currentUser.address?.zipCode || '',
+          zipCode: currentUser.address?.zipCode || currentUser.address?.zip || '',
         },
       });
     }

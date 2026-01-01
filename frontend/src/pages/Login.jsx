@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import riderImg from '../assets/rider.png';
 import LoginNavbar from '../components/LoginNavbar';
+import { useTranslation } from 'react-i18next';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -35,6 +36,7 @@ const Login = () => {
     setIsLoading(false);
   };
 
+  const { t } = useTranslation(['login']);
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-pink-50 to-yellow-50">
       <div className="flex flex-col lg:flex-row items-center justify-center gap-8 px-4 py-6 max-w-6xl w-full">
@@ -86,8 +88,8 @@ const Login = () => {
 ">
           <div className="absolute -z-10 hidden lg:block -left-24 top-8 w-90 h-40 rounded-full bg-red-200/30 blur-3xl" />
           <CardHeader>
-            <CardTitle className="text-2xl">Sign in to your account</CardTitle>
-            <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
+            <CardTitle className="text-2xl">{t('login:title')}</CardTitle>
+            <CardDescription>{t('login:description')}</CardDescription>
           </CardHeader>
 
           <CardContent>
@@ -99,30 +101,30 @@ const Login = () => {
                   className={`flex items-center justify-center gap-2 rounded-md border-2 p-3 cursor-pointer transition-all select-none ${role === 'vendor' ? 'border-red-500 bg-red-50 shadow-sm' : 'border-transparent bg-white/60'}`}
                 >
                   <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="font-medium">Buyer</span>
+                  <span className="font-medium">{t('login:buyer')}</span>
                 </div>
                 <div
                   onClick={() => setRole('supplier')}
                   className={`flex items-center justify-center gap-2 rounded-md border-2 p-3 cursor-pointer transition-all select-none ${role === 'supplier' ? 'border-red-500 bg-red-50 shadow-sm' : 'border-transparent bg-white/60'}`}
                 >
                   <div className="w-3 h-3 rounded-full bg-amber-400" />
-                  <span className="font-medium">Artisan</span>
+                  <span className="font-medium">{t('login:artisan')}</span>
                 </div>
               </div>
 
               {/* Email & Password */}
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <Label htmlFor="email">{t('login:email')}</Label>
+                <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required aria-label={t('login:email')} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <Label htmlFor="password">{t('login:password')}</Label>
+                <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required aria-label={t('login:password')} />
               </div>
 
               <Button type="submit" className="w-full bg-red-500 hover:bg-red-600 text-white mt-4 flex items-center justify-center" disabled={isLoading}>
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Sign In
+                {t('login:sign_in')}
               </Button>
             </form>
 
@@ -130,15 +132,15 @@ const Login = () => {
             <div className="text-center mt-4">
               <ForgotPasswordDialog open={isForgotPasswordDialogOpen} onOpenChange={setIsForgotPasswordDialogOpen}>
                 <Button variant="link" type="button" className="text-sm font-medium text-red-600 hover:underline">
-                  Forgot Password?
+                  {t('login:forgot_password')}
                 </Button>
               </ForgotPasswordDialog>
             </div>
 
             <p className="mt-4 text-center text-sm text-gray-600">
-              Don't have an account?{' '}
+              {t('login:dont_have_account')}{' '}
               <Link to="/register" className="text-red-600 hover:underline font-medium">
-                Sign up
+                {t('login:sign_up')}
               </Link>
             </p>
           </CardContent>

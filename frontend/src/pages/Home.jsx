@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
+import { useTranslation } from 'react-i18next';
 import RecommendedList from '@/components/RecommendedList'; // ✅ Added
 
 const Home = () => {
   const { isAuthenticated, user } = useAuth(); // ✅ include user
+  const { t } = useTranslation(['home']);
 
   // ✅ Example location (can replace with geolocation later)
   const location = { lat: 28.6139, lon: 77.2090 };
@@ -96,7 +98,7 @@ const Home = () => {
         {/* ✅ Recommendations section */}
         {isAuthenticated && (
           <div className="relative z-10 mt-16 text-left">
-            <h2 className="text-2xl font-semibold mb-4 text-gray-800">Recommended for you</h2>
+            <h2 className="text-2xl font-semibold mb-4 text-gray-800">{t('home:recommended_for_you')}</h2>
             <RecommendedList user={user} location={location} />
           </div>
         )}

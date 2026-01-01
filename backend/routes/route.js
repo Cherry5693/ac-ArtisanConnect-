@@ -32,8 +32,9 @@ router.patch('/profile', auth, userController.updateProfile); // NEW: Update use
 router.patch('/profile/location', auth, userController.updateProfileLocation); // NEW: Update user location
 
 // Products
-router.post('/products', auth, authorize('artisan'), upload.single('image'), productController.createProduct);
-router.patch('/products/:id', auth, authorize('artisan'), upload.single('image'), productController.updateProduct); // NEW: Update product
+// Accept up to 10 images for a product (field name: 'images')
+router.post('/products', auth, authorize('artisan'), upload.array('images', 10), productController.createProduct);
+router.patch('/products/:id', auth, authorize('artisan'), upload.array('images', 10), productController.updateProduct); // NEW: Update product
 router.get('/products', auth, productController.getProducts);
 router.get('/products/my-products', auth, authorize('artisan'), productController.getMyProducts);
 router.get('/products/:id', productController.getProductById);

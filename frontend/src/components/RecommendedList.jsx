@@ -1,11 +1,13 @@
-
-// frontend/src/components/RecommendedList.jsx
 import { useEffect, useState } from 'react';
-import { getRecommendations } from '@/services/recoService';           // use alias for consistency
-import { getProducts } from '@/services/productService';               // named import
+import { Link } from 'react-router-dom';
+import { getRecommendations } from '@/services/recoService';
+import { getProducts } from '@/services/productService';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { IndianRupee } from 'lucide-react';
+import { ProgressiveImage } from './ProgressiveImage';
 
 export default function RecommendedList({ user, location }) {
-  const [items, setItems] = useState([]);
   const [recommended, setRecommended] = useState([]);
 
   const lat = location?.lat ?? 28.6139;
@@ -14,14 +16,12 @@ export default function RecommendedList({ user, location }) {
   useEffect(() => {
     async function run() {
       // 1) fetch a small candidate pool
-      const res = await getProducts({});                               // Axios response
-      const products = Array.isArray(res) ? res : (res?.data || []);   // read res.data
-      setItems(products);
+      const res = await getProducts({});
+      const products = Array.isArray(res) ? res : (res?.data || []);
 
       const candidates = products.slice(0, 30).map(p => ({
         id: p._id,
         category: p.category,
-        // align with your schema; Products.jsx shows pricePerKg in use
         price: p.pricePerKg ?? p.price ?? 0,
         material: p.material || '',
       }));
@@ -44,24 +44,48 @@ export default function RecommendedList({ user, location }) {
 
   if (!recommended.length) return null;
 
-  const gridStyle = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))',
-    gap: 16
-  };
-
   return (
-    <section style={{ marginTop: 24 }}>
-      <h3>Recommended for you</h3>
-      <div style={gridStyle}>
+    <div className="mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {recommended.map(p => (
-          <div key={p._id} style={{ border: '1px solid #eee', borderRadius: 8, padding: 12 }}>
-            <div style={{ fontWeight: 600 }}>{p.name}</div>
-            <div style={{ color: '#666' }}>{p.category}</div>
-            <div style={{ marginTop: 6 }}>₹ {p.pricePerKg ?? p.price}</div>
-          </div>
+          <Card
+            key={p._id}
+            className="flex flex-col h-full overflow-hidden rounded-xl bg-white border border-gray-200 hover:shadow-lg transition-all duration-200 hover:-translate-y-1"
+          >
+            <Link to={`/products/${p._id}`} className="flex flex-col h-full">
+              {p.imageUrl && (
+                <ProgressiveImage
+                  src={p.imageUrl}
+                  alt={p.name}
+                  className="w-full h-32 object-cover"
+                  skeletonClassName="h-32"
+                />
+              )}
+              <CardHeader className="p-3 pb-2 flex-shrink-0">
+                <div className="flex justify-between items-start gap-2">
+                  <CardTitle className="text-sm font-semibold text-gray-800 line-clamp-2 leading-tight">
+                    {p.name}
+                  </CardTitle>
+                  <Badge variant="secondary" className="text-xs flex-shrink-0 ml-1">
+                    {p.category}
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="p-3 pt-0 flex-1 flex flex-col justify-end">
+                <div className="flex items-center space-x-1">
+                  <IndianRupee className="w-3 h-3 text-green-700 flex-shrink-0" />
+                  <span className="text-base font-bold text-green-700">
+                    {p.pricePerKg ?? p.price ?? 0}
+                  </span>
+                  {p.unit && (
+                    <span className="text-xs text-gray-500">/{p.unit}</span>
+                  )}
+                </div>
+              </CardContent>
+            </Link>
+          </Card>
         ))}
       </div>
-    </section>
+    </div>
   );
 }

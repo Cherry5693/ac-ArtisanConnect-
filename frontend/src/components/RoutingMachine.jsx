@@ -1,55 +1,116 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMap } from "react-leaflet";
-import "leaflet-routing-machine/dist/leaflet-routing-machine.css";
 import L from "leaflet";
-import "leaflet-routing-machine";
-// Import the Google routing machine plugin
-// Note: lrm-google is not included by default. Using the default routing control.
-const RoutingMachine = ({ start, end, onRouteFound }) => {
+
+// Simple cache to avoid repeated OSRM calls for same coordinates
+const routeCache = new Map();
+
+// Try to hydrate cache from localStorage for faster revisits
+try {
+  const raw = localStorage.getItem('osrmRouteCache_v1');
+  if (raw) {
+    const parsed = JSON.parse(raw);
+    Object.keys(parsed).forEach(k => routeCache.set(k, parsed[k]));
+  }
+} catch (e) {
+  // ignore
+}
+
+const isValidCoord = (c) => typeof c === 'number' && isFinite(c) && Math.abs(c) <= 180;
+
+const buildCacheKey = (start, end) => `${start[0]},${start[1]}_${end[0]},${end[1]}`;
+
+const RoutingMachine = ({ start, end, onRouteFound, onRouteStart, onRouteError }) => {
   const map = useMap();
+  const routeLayerRef = useRef(null);
+  const prevKeyRef = useRef(null);
 
   useEffect(() => {
-  if (!map || !start || !end) return;
+    if (!map) return;
+    // validate coords
+    if (!start || !end) return;
+    const [sLat, sLng] = start;
+    const [eLat, eLng] = end;
+    if (![sLat, sLng, eLat, eLng].every(v => isValidCoord(v))) return;
 
-    // Remove existing routing control if any to prevent duplicates on re-render
-    if (map.routingControl) {
-      map.removeControl(map.routingControl);
+    const key = buildCacheKey(start, end);
+
+    // If same as previous, skip
+    if (prevKeyRef.current === key) return;
+    prevKeyRef.current = key;
+
+    // If cached, use cached route
+    if (routeCache.has(key)) {
+      const cached = routeCache.get(key);
+      // remove existing layer
+      if (routeLayerRef.current) {
+        map.removeLayer(routeLayerRef.current);
+        routeLayerRef.current = null;
+      }
+      const poly = L.polyline(cached.coords, { color: 'blue', weight: 5, opacity: 0.8 }).addTo(map);
+      routeLayerRef.current = poly;
+      map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+      if (onRouteFound) onRouteFound({ distance: cached.distance, duration: cached.duration });
+      return;
     }
 
-    const routingControl = L.Routing.control({
-      waypoints: [L.latLng(start[0], start[1]), L.latLng(end[0], end[1])],
-      routeWhileDragging: true,
-      lineOptions: {
-        styles: [{ color: "blue", opacity: 0.7, weight: 5 }],
-      },
-      show: false, // Hide the default instructions panel
-      addWaypoints: false,
-      draggableWaypoints: false,
-      fitSelectedRoutes: true,
-      // Pass the API key to the Google routing control
-  }).addTo(map);
+    // Not cached: fetch from OSRM
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${sLng},${sLat};${eLng},${eLat}?overview=full&geometries=geojson&alternatives=false&annotations=true`;
 
-    // Store the routing control on the map for easy removal
-    map.routingControl = routingControl;
+    let cancelled = false;
 
-    routingControl.on('routesfound', function (e) {
-      const routes = e.routes;
-      const summary = routes[0].summary;
-      if (onRouteFound) {
-        onRouteFound(summary);
-      }
+    // notify start
+    if (onRouteStart) onRouteStart(true);
 
-      // Removed simulated live tracking.
-      // Real live tracking would involve updating a marker based on actual data.
-    });
+    fetch(osrmUrl)
+      .then(res => res.json())
+      .then(data => {
+        if (cancelled) return;
+        if (!data || data.code !== 'Ok' || !data.routes || !data.routes.length) {
+          throw new Error('No route found');
+        }
+        const route = data.routes[0];
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]); // to [lat,lng]
+        const distance = route.distance; // meters
+        const duration = route.duration; // seconds
+
+        // cache it
+        routeCache.set(key, { coords, distance, duration });
+        try {
+          const toStore = Object.fromEntries(routeCache);
+          localStorage.setItem('osrmRouteCache_v1', JSON.stringify(toStore));
+        } catch (e) {
+          // ignore storage failures
+        }
+
+        // remove existing layer
+        if (routeLayerRef.current) {
+          map.removeLayer(routeLayerRef.current);
+          routeLayerRef.current = null;
+        }
+
+        const poly = L.polyline(coords, { color: 'blue', weight: 5, opacity: 0.8 }).addTo(map);
+        routeLayerRef.current = poly;
+        map.fitBounds(poly.getBounds(), { padding: [50, 50] });
+
+        if (onRouteFound) onRouteFound({ distance, duration });
+      })
+      .catch(err => {
+        console.error('RoutingMachine: failed to fetch route', err);
+        if (onRouteError) onRouteError(err);
+      })
+      .finally(() => {
+        if (onRouteStart) onRouteStart(false);
+      });
 
     return () => {
-      if (map.routingControl) {
-        map.removeControl(map.routingControl);
-        map.routingControl = null;
+      cancelled = true;
+      if (routeLayerRef.current) {
+        try { map.removeLayer(routeLayerRef.current); } catch(e) {}
+        routeLayerRef.current = null;
       }
     };
-  }, [map, start, end, onRouteFound]); // Removed apiKey from dependency array
+  }, [map, start, end, onRouteFound]);
 
   return null;
 };

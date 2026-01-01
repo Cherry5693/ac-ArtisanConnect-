@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as authService from '../services/authService';
 import { useToast } from '@/components/ui/use-toast';
+import { useTranslation } from 'react-i18next';
 
 const AuthContext = createContext(undefined);
 
@@ -8,6 +9,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     try {
@@ -39,12 +41,12 @@ export const AuthProvider = ({ children }) => {
       console.log('AuthContext login: Saving userWithToken to localStorage:', userWithToken);
       localStorage.setItem('user', JSON.stringify(userWithToken));
       setUser(userWithToken);
-      toast({ title: 'Login Successful', description: `Welcome back, ${userData.name}!` });
+      toast({ title: t('auth:login_success_title'), description: i18n.t('auth:login_success_description', { name: userData.name }) });
       console.log('AuthContext login: Login successful');
       return { success: true };
     } catch (err) {
       console.error('AuthContext login: Login failed', err);
-      toast({ title: 'Login Failed', description: err.response?.data?.msg || 'Invalid credentials', variant: 'destructive' });
+      toast({ title: t('auth:login_failed_title'), description: err.response?.data?.msg || t('auth:login_failed_description'), variant: 'destructive' });
       return { success: false, message: err.response?.data?.msg || 'Invalid credentials' };
     }
   };

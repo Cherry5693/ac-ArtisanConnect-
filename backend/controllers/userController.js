@@ -14,6 +14,14 @@ function haversineDistance([lat1, lon1], [lat2, lon2]) {
   return R * c;
 }
 
+// Normalize address - ensure zipCode is present when legacy `zip` exists
+function normalizeAddress(user) {
+  if (!user || !user.address) return;
+  if (user.address.zip && !user.address.zipCode) {
+    user.address.zipCode = user.address.zip;
+  }
+}
+
 // Get current user profile
 exports.getProfile = async (req, res) => {
   try {
@@ -31,6 +39,10 @@ exports.getProfile = async (req, res) => {
       console.log('getProfile: User not found for ID:', req.user.id);
       return res.status(404).json({ msg: 'User not found' });
     }
+
+    // backfill legacy zip -> zipCode for response
+    normalizeAddress(user);
+
     res.json(user);
   } catch (err) {
     console.error('Error in getProfile:', err);
@@ -87,6 +99,9 @@ exports.getArtisanProfile = async (req, res) => {
     const { id } = req.params;
     const artisan = await ArtisanUser.findById(id).select('-password');
     if (!artisan) return res.status(404).json({ msg: 'Artisan not found' });
+
+    // backfill legacy zip -> zipCode for response
+    normalizeAddress(artisan);
 
     const products = await Product.find({ artisan: id });
 
@@ -223,6 +238,7 @@ exports.updateProfile = async (req, res) => {
 exports.getArtisanLocations = async (req, res) => {
   try {
     const artisans = await ArtisanUser.find().select('_id artisanName address.coords');
+    // no zip info here usually, but keep shape consistent
     res.json(artisans);
   } catch (err) {
     console.error('Error fetching artisan locations:', err);
