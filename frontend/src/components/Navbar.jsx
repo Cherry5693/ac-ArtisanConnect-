@@ -178,78 +178,113 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Links */}
-{isAuthenticated && isMobileMenuOpen && (
-  <div className="md:hidden flex flex-col space-y-2 mt-2 px-4 pb-4 border-t border-gray-200 bg-white/80 backdrop-blur-lg rounded-b-xl shadow-md">
+      {isMobileMenuOpen && (
+        <div className="md:hidden flex flex-col space-y-2 mt-2 px-4 pb-4 border-t border-gray-200 bg-white/80 backdrop-blur-lg rounded-b-xl shadow-md">
+          {/* Language Switcher */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="flex items-center justify-between w-full px-2 py-2 font-medium text-gray-800 hover:bg-gray-100 rounded-md"
+              >
+                <div className="flex items-center">
+                  <Globe className="w-5 h-5 mr-2" />
+                  <span>{t('nav:language')}</span>
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-48 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-200"
+            >
+              <DropdownMenuItem onClick={() => { changeLanguage('en'); setIsMobileMenuOpen(false); }}>English</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { changeLanguage('es'); setIsMobileMenuOpen(false); }}>Español</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { changeLanguage('hi'); setIsMobileMenuOpen(false); }}>हिंदी</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-    {/* Main navigation */}
-    <Link
-      to="/products"
-      className={`font-medium hover:text-red-500 transition ${isActive('/products') ? 'text-red-600' : 'text-gray-800'}`}
-      onClick={() => setIsMobileMenuOpen(false)}
-    >
-      {t('Products')}
-    </Link>
+          {isAuthenticated ? (
+            <>
+              {/* Main navigation */}
+              <Link
+                to="/products"
+                className={`font-medium hover:text-red-500 transition ${isActive('/products') ? 'text-red-600' : 'text-gray-800'}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                {t('Products')}
+              </Link>
 
-    {user?.role === 'artisan' ? (
-      <>
-        <Link
-          to="/artisan"
-          className={`font-medium hover:text-red-500 transition ${isActive('/artisan') ? 'text-red-600' : 'text-gray-800'}`}
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          {t('Dashboard')}
-        </Link>
-        <Link
-          to="/my-products"
-          className={`font-medium hover:text-red-500 transition ${isActive('/my-products') ? 'text-red-600' : 'text-gray-800'}`}
-          onClick={() => setIsMobileMenuOpen(false)}
-        >
-          {t('My Products')}
-        </Link>
-      </>
-    ) : (
-      <Link
-        to="/orders"
-        className={`font-medium hover:text-red-500 transition ${isActive('/orders') ? 'text-red-600' : 'text-gray-800'}`}
-        onClick={() => setIsMobileMenuOpen(false)}
-      >
-        {t('My Orders')}
-      </Link>
-    )}
+              {user?.role === 'artisan' ? (
+                <>
+                  <Link
+                    to="/artisan"
+                    className={`font-medium hover:text-red-500 transition ${isActive('/artisan') ? 'text-red-600' : 'text-gray-800'}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {t('Dashboard')}
+                  </Link>
+                  <Link
+                    to="/my-products"
+                    className={`font-medium hover:text-red-500 transition ${isActive('/my-products') ? 'text-red-600' : 'text-gray-800'}`}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {t('My Products')}
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  to="/orders"
+                  className={`font-medium hover:text-red-500 transition ${isActive('/orders') ? 'text-red-600' : 'text-gray-800'}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  {t('My Orders')}
+                </Link>
+              )}
 
-    <Link
-      to="/inbox"
-      className={`relative font-medium flex items-center hover:text-red-500 transition ${isActive('/inbox') ? 'text-red-600' : 'text-gray-800'}`}
-      onClick={() => setIsMobileMenuOpen(false)}
-    >
-      <MessageSquare className="w-5 h-5 mr-2" />
-      {t('Inbox')}
-      {unreadCount > 0 && (
-        <span className="absolute -top-2 -right-4 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">
-          {unreadCount}
-        </span>
+              <Link
+                to="/inbox"
+                className={`relative font-medium flex items-center hover:text-red-500 transition ${isActive('/inbox') ? 'text-red-600' : 'text-gray-800'}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <MessageSquare className="w-5 h-5 mr-2" />
+                {t('Inbox')}
+                {unreadCount > 0 && (
+                  <span className="absolute -top-2 -right-4 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow">
+                    {unreadCount}
+                  </span>
+                )}
+              </Link>
+
+              {/* Profile options */}
+              <div className="border-t border-gray-200 pt-2">
+                <button
+                  className="flex items-center justify-between w-full px-2 py-2 font-medium text-gray-800 hover:bg-gray-100 rounded-md"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <span>{t('Profile')}</span>
+                  <UserIcon className="w-5 h-5" />
+                </button>
+                <button
+                  className="flex items-center justify-between w-full px-2 py-2 font-medium text-red-600 hover:bg-red-100 rounded-md"
+                  onClick={() => { logout(); setIsMobileMenuOpen(false); }}
+                >
+                  <span>{t('Logout')}</span>
+                  <LogOut className="w-5 h-5" />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="border-t border-gray-200 pt-2 flex flex-col space-y-2">
+              <Button asChild onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/login">{t('auth:login')}</Link>
+              </Button>
+              <Button asChild onClick={() => setIsMobileMenuOpen(false)}>
+                <Link to="/register">{t('auth:register')}</Link>
+              </Button>
+            </div>
+          )}
+        </div>
       )}
-    </Link>
-
-    {/* Profile options */}
-    <div className="border-t border-gray-200 pt-2">
-      <button
-        className="flex items-center justify-between w-full px-2 py-2 font-medium text-gray-800 hover:bg-gray-100 rounded-md"
-        onClick={() => setIsMobileMenuOpen(false)}
-      >
-        <span>{t('Profile')}</span>
-        <UserIcon className="w-5 h-5" />
-      </button>
-      <button
-        className="flex items-center justify-between w-full px-2 py-2 font-medium text-red-600 hover:bg-red-100 rounded-md"
-        onClick={() => { logout(); setIsMobileMenuOpen(false); }}
-      >
-        <span>{t('Logout')}</span>
-        <LogOut className="w-5 h-5" />
-      </button>
-    </div>
-  </div>
-)}
 
       </div>
     </nav>
