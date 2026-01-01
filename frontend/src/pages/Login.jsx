@@ -18,6 +18,7 @@ const Login = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isForgotPasswordDialogOpen, setIsForgotPasswordDialogOpen] = useState(false);
   const { login, isAuthenticated } = useAuth();
+  const { t } = useTranslation(['login']);
 
  // Disable page scroll while on login
   useEffect(() => {
@@ -36,7 +37,6 @@ const Login = () => {
     setIsLoading(false);
   };
 
-  const { t } = useTranslation(['login']);
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-pink-50 to-yellow-50">
       <div className="flex flex-col lg:flex-row items-center justify-center gap-8 px-4 py-6 max-w-6xl w-full">
