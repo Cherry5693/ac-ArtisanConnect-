@@ -4,6 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const routes = require('./routes/route');
 const recRoutes = require('./routes/recoRoutes');
+const path = require('path');
 
 // Load env vars
 dotenv.config({ path: './backend/.env' }); // Specify the path to .env
@@ -46,6 +47,18 @@ app.use((req, res, next) => {
 // Mount routers
 app.use('/api', routes);
 app.use('/api',recRoutes)
+
+// Serve static assets in production and let client-side routing handle routes
+if (process.env.NODE_ENV === 'production') {
+	const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
+	app.use(express.static(frontendPath));
+
+	// For any GET request that isn't an API route, serve index.html so React Router can handle it.
+	app.get('*', (req, res) => {
+		if (req.path.startsWith('/api')) return res.status(404).send('Not found');
+		res.sendFile(path.join(frontendPath, 'index.html'));
+	});
+}
 
 const PORT = process.env.PORT || 5000;
 
