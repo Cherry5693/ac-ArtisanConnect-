@@ -302,7 +302,7 @@ const ProductDetail = () => {
 
                 {/* Action Buttons */}
                 {user?.role !== 'artisan' && product.artisan && (
-                  <div className="mt-6 flex flex-col md:flex-row gap-3">
+                  <div className="mt-6 flex flex-col md:flex-row gap-3 z-10 relative">
                     <Button
                       onClick={handleChatClick}
                       isLoading={chatLoading}
