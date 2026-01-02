@@ -54,8 +54,12 @@ exports.sendMessage = async (req, res) => {
       return res.status(404).json({ msg: 'Conversation not found.' });
     }
 
+    // Debug: log participant membership for troubleshooting
+    console.log('sendMessage: req.user.id =', senderId);
+    console.log('sendMessage: conversation.participants =', conversation.participants.map(p => p.toString()));
     // Ensure sender is a participant in the conversation
-    if (!conversation.participants.includes(senderId)) {
+    if (!conversation.participants.some(p => p.toString() === senderId)) {
+      console.log('sendMessage: Forbidden - participant check failed', { senderId, participants: conversation.participants.map(p => p.toString()) });
       return res.status(403).json({ msg: 'You are not a participant in this conversation.' });
     }
 
@@ -166,7 +170,7 @@ exports.getMessages = async (req, res) => {
       return res.status(404).json({ msg: 'Conversation not found.' });
     }
 
-    if (!conversation.participants.includes(userId)) {
+    if (!conversation.participants.some(p => p.toString() === userId)) {
       return res.status(403).json({ msg: 'You are not a participant in this conversation.' });
     }
 
@@ -192,8 +196,12 @@ exports.markConversationAsRead = async (req, res) => {
       return res.status(404).json({ msg: 'Conversation not found.' });
     }
 
+    // Debug: log participant membership for troubleshooting
+    console.log('markConversationAsRead: req.user.id =', userId);
+    console.log('markConversationAsRead: conversation.participants =', conversation.participants.map(p => p.toString()));
     // Ensure the user is a participant in the conversation
-    if (!conversation.participants.includes(userId)) {
+    if (!conversation.participants.some(p => p.toString() === userId)) {
+      console.log('markConversationAsRead: Forbidden - participant check failed', { userId, participants: conversation.participants.map(p => p.toString()) });
       return res.status(403).json({ msg: 'You are not a participant in this conversation.' });
     }
 
@@ -266,8 +274,12 @@ exports.getConversationDetails = async (req, res) => {
       return res.status(404).json({ msg: 'Conversation not found.' });
     }
 
+    // Debug: log participant membership for troubleshooting (populated participants)
+    console.log('getConversationDetails: req.user.id =', userId);
+    console.log('getConversationDetails: conversation.participants =', conversation.participants.map(p => p._id ? p._id.toString() : p.toString()));
     // Ensure the user is a participant in the conversation
     if (!conversation.participants.some(p => p._id.toString() === userId)) {
+      console.log('getConversationDetails: Forbidden - participant check failed', { userId, participants: conversation.participants.map(p => p._id ? p._id.toString() : p.toString()) });
       return res.status(403).json({ msg: 'You are not a participant in this conversation.' });
     }
 

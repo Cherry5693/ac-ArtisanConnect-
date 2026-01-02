@@ -29,6 +29,8 @@ const ChatPage = () => {
       setLoading(true);
       setError(null);
       try {
+        console.log('ChatPage fetchMessages: user =', user);
+        console.log('ChatPage fetchMessages: Authorization =', `Bearer ${user?.token}`);
         const messagesRes = await axios.get(
           `${API_BASE_URL}/conversations/${conversationId}/messages`,
           { headers: { Authorization: `Bearer ${user.token}` } }
@@ -39,7 +41,7 @@ const ChatPage = () => {
           `${API_BASE_URL}/conversations/${conversationId}`,
           { headers: { Authorization: `Bearer ${user.token}` } }
         );
-        const otherParticipant = conversationRes.data.participants.find(p => p._id !== user.id);
+        const otherParticipant = conversationRes.data.participants.find(p => p._id !== user._id);
         if (otherParticipant) {
           setChatTitle(`Chat with ${otherParticipant.businessName || otherParticipant.name}`);
         }
@@ -116,7 +118,7 @@ const ChatPage = () => {
                 <p className="text-center text-gray-500">No messages yet. Start the conversation!</p>
               ) : (
                 messages.map(msg => {
-                  const isUser = msg.sender === user.id;
+                  const isUser = msg.sender._id === user._id;
                   return (
                     <div key={msg._id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
                       <div className={`max-w-[70%] px-4 py-2 rounded-lg ${isUser ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-800'}`}>
