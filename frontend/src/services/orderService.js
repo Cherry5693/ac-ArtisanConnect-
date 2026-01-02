@@ -21,7 +21,7 @@ export const getArtisanDirectOrders = () => {
  * @param {string} productId - The ID of the product.
  * @param {number} quantity - The quantity the buyer is ordering.
  */
-export const createDirectOrder = (productId, quantity) => {
+export const createDirectOrder = ({ productId, quantity }) => {
   return api.post('/orders', { productId, quantity });
 };
 
