@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/axiosConfig';
 import { useAuth } from '../context/AuthContext';
 import { Input } from '../components/ui/input';
 import { Button } from '../components/ui/button';
@@ -18,8 +18,6 @@ const ChatPage = () => {
   const messagesEndRef = useRef(null);
   const [chatTitle, setChatTitle] = useState('Chat');
 
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -30,23 +28,20 @@ const ChatPage = () => {
       setError(null);
       try {
         console.log('ChatPage fetchMessages: user =', user);
-        console.log('ChatPage fetchMessages: Authorization =', `Bearer ${user?.token}`);
-        const messagesRes = await axios.get(
-          `${API_BASE_URL}/conversations/${conversationId}/messages`,
-          { headers: { Authorization: `Bearer ${user.token}` } }
+        const messagesRes = await api.get(
+          `/conversations/${conversationId}/messages`
         );
         setMessages(messagesRes.data);
 
-        const conversationRes = await axios.get(
-          `${API_BASE_URL}/conversations/${conversationId}`,
-          { headers: { Authorization: `Bearer ${user.token}` } }
+        const conversationRes = await api.get(
+          `/conversations/${conversationId}`
         );
         const otherParticipant = conversationRes.data.participants.find(p => p._id !== user._id);
         if (otherParticipant) {
           setChatTitle(`Chat with ${otherParticipant.businessName || otherParticipant.name}`);
         }
 
-        if (conversationId && user && user.token) {
+        if (conversationId && user) {
           await markConversationAsRead(conversationId);
         }
       } catch (err) {
@@ -57,15 +52,15 @@ const ChatPage = () => {
       }
     };
 
-    if (user && user.token && conversationId) fetchMessages();
-    else if (!user || !user.token) {
+    if (user && conversationId) fetchMessages();
+    else if (!user) {
       setLoading(false);
       setError('Please log in to view this chat.');
     } else if (!conversationId) {
       setLoading(false);
       setError('No conversation selected.');
     }
-  }, [user, conversationId, API_BASE_URL]);
+  }, [user, conversationId]);
 
   useEffect(() => scrollToBottom(), [messages]);
 
@@ -74,10 +69,9 @@ const ChatPage = () => {
     if (!newMessage.trim() || !conversationId) return;
 
     try {
-      const messageRes = await axios.post(
-        `${API_BASE_URL}/messages`,
-        { conversationId, content: newMessage },
-        { headers: { Authorization: `Bearer ${user.token}` } }
+      const messageRes = await api.post(
+        `/messages`,
+        { conversationId, content: newMessage }
       );
       setMessages(prev => [...prev, messageRes.data]);
       setNewMessage('');
