@@ -204,6 +204,12 @@ const ProductDetail = () => {
   const handleChatClick = async () => {
     setChatLoading(true);
     setChatError(null);
+    console.log('User object on chat click:', user); // Add this log
+    if (!user || !user.token) {
+      setChatError('You must be logged in to start a chat.');
+      setChatLoading(false);
+      return;
+    }
     try {
       const res = await axios.post(
         `${API_BASE_URL}/conversations/${product.artisan._id}/${product._id}`,
@@ -211,7 +217,8 @@ const ProductDetail = () => {
         { headers: { Authorization: `Bearer ${user.token}` } }
       );
       navigate(`/chat/${res.data.conversationId}`);
-    } catch {
+    } catch (error) { // It's good practice to log the actual error
+      console.error('Failed to start chat:', error);
       setChatError('Failed to start chat. Please try again.');
     } finally {
       setChatLoading(false);
